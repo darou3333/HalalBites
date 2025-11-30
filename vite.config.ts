@@ -12,6 +12,16 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true
-  }
+    host: true,
+    middlewareMode: false,
+  },
+  preview: {
+    port: 3000,
+    host: true,
+    allowedHosts: [
+      'halal-bites-frontend.onrender.com',
+      'localhost',
+      '127.0.0.1',
+    ],
+  },
 })
