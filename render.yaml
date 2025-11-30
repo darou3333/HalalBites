@@ -20,9 +20,9 @@ services:
   - type: web
     name: halal-bites-frontend
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm run preview
+    buildCommand: npm install && VITE_API_URL=$VITE_API_URL npm run build
+    startCommand: npx serve -s dist -l 3000
     publishDirectory: dist
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: https://halal-bites-backend.onrender.com/api
