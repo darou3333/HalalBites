@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, ChefHat, Trash2, Loader, AlertCircle, Archive, ArchiveRestore, Plus } from 'lucide-react';
+import { Shield, Users, ChefHat, Trash2, Loader, AlertCircle, Archive, ArchiveRestore, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
