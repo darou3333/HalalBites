@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Plus, X, AlertCircle, CheckCircle, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,11 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { recipeService } from '@/services/api';
+import { recipeService, haramIngredientsService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-
-// List of haram ingredients
-const haramIngredients = ['pork', 'alcohol', 'shellfish', 'lard', 'gelatin'];
 
 interface Ingredient {
   name: string;
@@ -38,6 +35,23 @@ export default function UploadRecipe() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [haramIngredients, setHaramIngredients] = useState<string[]>([]);
+
+  // Fetch haram ingredients on mount
+  useEffect(() => {
+    const fetchHaramIngredients = async () => {
+      try {
+        const ingredients = await haramIngredientsService.getAll();
+        setHaramIngredients(ingredients.map(ing => ing.ingredient_name));
+      } catch (err) {
+        console.error('Failed to fetch haram ingredients:', err);
+        // Fallback to empty list if fetch fails
+        setHaramIngredients([]);
+      }
+    };
+
+    fetchHaramIngredients();
+  }, []);
 
   const addIngredient = () => {
     setIngredients([...ingredients, { name: '', quantity: '', unit: 'kg' }]);
@@ -159,10 +173,10 @@ export default function UploadRecipe() {
         cook_time: parseInt(cookingTime) || 0
       });
 
-      setSuccess('Recipe uploaded successfully!');
+      setSuccess('Recipe uploaded! It will be reviewed by admins before appearing on the platform.');
       setTimeout(() => {
         navigate('/dashboard');
-      }, 1500);
+      }, 2000);
     } catch (err) {
       setError('Failed to upload recipe');
       console.error('Upload error:', err);

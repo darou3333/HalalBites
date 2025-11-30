@@ -11,6 +11,7 @@ export interface User {
   bio?: string;
   specialty?: string;
   profile_image?: string;
+  active?: boolean;
   created_at: string;
 }
 
@@ -47,6 +48,7 @@ export interface Recipe {
   image_url?: string;
   user_id: number;
   username: string;
+  is_verified: number;
   created_at: string;
   view_count: number;
 }
@@ -75,6 +77,7 @@ export interface Comment {
   date: string;
   user_id?: number;
   recipe_id?: number;
+  profile_image?: string;
 }
 
 export interface CreateCommentInput {
@@ -147,4 +150,37 @@ export class ValidationError extends Error {
     super(message);
     this.name = 'ValidationError';
   }
+}
+
+// ============ Report Types ============
+export interface Report {
+  id: number;
+  recipe_id: number;
+  user_id: number;
+  reason: string;
+  description?: string;
+  status: 'pending' | 'reviewed' | 'dismissed' | 'action_taken';
+  admin_id?: number;
+  admin_notes?: string;
+  reporter_username?: string;
+  recipe_title?: string;
+  admin_username?: string;
+  created_at: string;
+  resolved_at?: string;
+}
+
+export interface CreateReportInput {
+  reason: string;
+  description?: string;
+}
+
+// ============ Recipe Verification Types ============
+export interface RecipeVerification {
+  id: number;
+  recipe_id: number;
+  admin_id: number;
+  status: 'approved' | 'rejected';
+  reason?: string;
+  created_at: string;
+  updated_at: string;
 }

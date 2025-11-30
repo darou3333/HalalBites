@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, ChefHat, Trash2, Loader } from 'lucide-react';
+import { Shield, Users, ChefHat, Trash2, Loader, AlertCircle, Archive, ArchiveRestore, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { userService, recipeService } from '@/services/api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { userService, recipeService, haramIngredientsService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import RecipeVerification from '@/components/RecipeVerification';
+import ReportManagement from '@/components/ReportManagement';
 
 interface User {
   id: number;
@@ -14,6 +20,7 @@ interface User {
   email: string;
   role: string;
   created_at: string;
+  active?: boolean;
 }
 
 interface Recipe {
@@ -23,6 +30,13 @@ interface Recipe {
   username: string;
   view_count: number;
   created_at: string;
+  is_archived: number;
+}
+
+interface HaramIngredient {
+  id: number;
+  ingredient_name: string;
+  reason?: string;
 }
 
 export default function AdminDashboard() {
@@ -30,6 +44,10 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [haramIngredients, setHaramIngredients] = useState<HaramIngredient[]>([]);
+  const [newIngredient, setNewIngredient] = useState('');
+  const [newReason, setNewReason] = useState('');
+  const [addingIngredient, setAddingIngredient] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,17 +69,27 @@ export default function AdminDashboard() {
       // Fetch users
       try {
         const usersData = await userService.getAll();
+        console.log('Users data:', usersData);
         setUsers(usersData || []);
       } catch (err) {
         console.error('Failed to fetch users:', err);
+        setError('Failed to fetch users. Please check console.');
       }
 
-      // Fetch recipes
+      // Fetch recipes (including archived)
       try {
-        const recipesData = await recipeService.getAll();
+        const recipesData = await recipeService.getAllForAdmin();
         setRecipes(recipesData || []);
       } catch (err) {
         console.error('Failed to fetch recipes:', err);
+      }
+
+      // Fetch haram ingredients
+      try {
+        const ingredientsData = await haramIngredientsService.getAll();
+        setHaramIngredients(ingredientsData || []);
+      } catch (err) {
+        console.error('Failed to fetch haram ingredients:', err);
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -71,14 +99,83 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAddHaramIngredient = async () => {
+    if (!newIngredient.trim()) {
+      alert('Please enter an ingredient name');
+      return;
+    }
+
+    try {
+      setAddingIngredient(true);
+      const result = await haramIngredientsService.add(newIngredient.trim(), newReason.trim() || undefined);
+      setHaramIngredients([...haramIngredients, result as HaramIngredient]);
+      setNewIngredient('');
+      setNewReason('');
+    } catch (err) {
+      console.error('Failed to add ingredient:', err);
+      alert('Failed to add ingredient. It may already exist in the list.');
+    } finally {
+      setAddingIngredient(false);
+    }
+  };
+
+  const handleDeleteHaramIngredient = async (id: number) => {
+    if (!confirm('Remove this ingredient from the restricted list?')) return;
+
+    try {
+      await haramIngredientsService.delete(id);
+      setHaramIngredients(haramIngredients.filter(ing => ing.id !== id));
+    } catch (err) {
+      console.error('Failed to delete ingredient:', err);
+      alert('Failed to remove ingredient');
+    }
+  };
+
   const handleDeactivateUser = async (userId: number) => {
     if (!confirm('Are you sure you want to deactivate this user?')) return;
 
     try {
-      await userService.deactivate(userId);
-      setUsers(users.filter(u => u.id !== userId));
+      const response = await userService.deactivate(userId);
+      console.log('✅ Deactivate response:', response);
+      
+      // Update local state with the returned data to ensure consistency
+      if (response?.data && response.data.length > 0) {
+        const updatedUser = response.data[0];
+        setUsers(users.map(u => u.id === userId ? { ...u, active: updatedUser.is_active } : u));
+      } else {
+        // Fallback: update local state and refresh from server
+        setUsers(users.map(u => u.id === userId ? { ...u, active: false } : u));
+        // Refresh users list from server to ensure consistency
+        setTimeout(() => fetchData(), 500);
+      }
+      alert('✅ User deactivated successfully. They will not be able to login.');
     } catch (err) {
       console.error('Failed to deactivate user:', err);
+      alert('❌ Failed to deactivate user. ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  const handleReactivateUser = async (userId: number) => {
+    if (!confirm('Are you sure you want to reactivate this user?')) return;
+
+    try {
+      const response = await userService.reactivate(userId);
+      console.log('✅ Reactivate response:', response);
+      
+      // Update local state with the returned data to ensure consistency
+      if (response?.data && response.data.length > 0) {
+        const updatedUser = response.data[0];
+        setUsers(users.map(u => u.id === userId ? { ...u, active: updatedUser.is_active } : u));
+      } else {
+        // Fallback: update local state and refresh from server
+        setUsers(users.map(u => u.id === userId ? { ...u, active: true } : u));
+        // Refresh users list from server to ensure consistency
+        setTimeout(() => fetchData(), 500);
+      }
+      alert('✅ User reactivated successfully. They can now login.');
+    } catch (err) {
+      console.error('Failed to reactivate user:', err);
+      alert('❌ Failed to reactivate user. ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 
@@ -101,6 +198,16 @@ export default function AdminDashboard() {
       setRecipes(recipes.filter(r => r.id !== recipeId));
     } catch (err) {
       console.error('Failed to delete recipe:', err);
+    }
+  };
+
+  const handleToggleArchive = async (recipeId: number, isCurrentlyArchived: boolean) => {
+    try {
+      const action = isCurrentlyArchived ? 'unarchive' : 'archive';
+      const updated = await recipeService.toggleArchive(recipeId, !isCurrentlyArchived);
+      setRecipes(recipes.map(r => r.id === recipeId ? updated : r));
+    } catch (err) {
+      console.error(`Failed to ${isCurrentlyArchived ? 'unarchive' : 'archive'} recipe:`, err);
     }
   };
 
@@ -203,17 +310,38 @@ export default function AdminDashboard() {
               <TabsList className="bg-transparent h-16">
                 <TabsTrigger 
                   value="users" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-none px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white"
+                  className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/20 data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-t-lg px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white transition-all duration-300"
                 >
                   <Users className="w-5 h-5 mr-2" />
                   Users
                 </TabsTrigger>
                 <TabsTrigger 
                   value="recipes" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-none px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white"
+                  className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/20 data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-t-lg px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white transition-all duration-300"
                 >
                   <ChefHat className="w-5 h-5 mr-2" />
                   Recipes
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="verification" 
+                  className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/20 data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-t-lg px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white transition-all duration-300"
+                >
+                  <Shield className="w-5 h-5 mr-2" />
+                  Verification
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="reports" 
+                  className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/20 data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-t-lg px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white transition-all duration-300"
+                >
+                  <AlertCircle className="w-5 h-5 mr-2" />
+                  Reports
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="ingredients" 
+                  className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/20 data-[state=active]:border-b-2 data-[state=active]:border-green-600 dark:data-[state=active]:border-green-400 rounded-t-lg px-6 text-lg text-neutral-600 dark:text-neutral-400 data-[state=active]:text-neutral-900 dark:data-[state=active]:text-white transition-all duration-300"
+                >
+                  <Shield className="w-5 h-5 mr-2" />
+                  Restricted
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -228,13 +356,14 @@ export default function AdminDashboard() {
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Username</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Email</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Role</TableHead>
+                      <TableHead className="text-lg text-neutral-900 dark:text-white">Status</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Join Date</TableHead>
                       <TableHead className="text-right text-lg text-neutral-900 dark:text-white">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
-                      <TableRow key={user.id} className="border-neutral-200 dark:border-neutral-800">
+                      <TableRow key={user.id} className={`border-neutral-200 dark:border-neutral-800 ${!user.active ? 'bg-neutral-50 dark:bg-neutral-800/50' : ''}`}>
                         <TableCell className="text-neutral-600 dark:text-neutral-400">{user.id}</TableCell>
                         <TableCell className="text-neutral-900 dark:text-white font-medium">{user.username}</TableCell>
                         <TableCell className="text-neutral-600 dark:text-neutral-400">{user.email}</TableCell>
@@ -246,6 +375,14 @@ export default function AdminDashboard() {
                             {user.role}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={user.active ? 'default' : 'secondary'}
+                            className={`${user.active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'} px-3 py-1.5 rounded-full`}
+                          >
+                            {user.active ? 'Active' : 'Deactivated'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-neutral-600 dark:text-neutral-400">
                           {new Date(user.created_at).toLocaleDateString()}
                         </TableCell>
@@ -253,23 +390,47 @@ export default function AdminDashboard() {
                           <div className="flex items-center justify-end gap-2">
                             {user.role !== 'admin' && (
                               <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDeactivateUser(user.id)}
-                                  className="border-2 border-orange-600 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-900/20 rounded-lg px-3 py-1 text-sm"
-                                >
-                                  Deactivate
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg p-2"
-                                  title="Delete user permanently"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {user.active ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeactivateUser(user.id)}
+                                      className="border-2 border-orange-600 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-900/20 rounded-lg px-3 py-1 text-sm"
+                                    >
+                                      Deactivate
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg p-2"
+                                      title="Delete user permanently"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleReactivateUser(user.id)}
+                                      className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg px-3 py-1 text-sm"
+                                    >
+                                      Reactivate
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteUser(user.id)}
+                                      className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg p-2"
+                                      title="Delete user permanently"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                )}
                               </>
                             )}
                             {user.role === 'admin' && (
@@ -295,13 +456,14 @@ export default function AdminDashboard() {
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Category</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Uploaded By</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Views</TableHead>
+                      <TableHead className="text-lg text-neutral-900 dark:text-white">Status</TableHead>
                       <TableHead className="text-lg text-neutral-900 dark:text-white">Upload Date</TableHead>
                       <TableHead className="text-right text-lg text-neutral-900 dark:text-white">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {recipes.map((recipe) => (
-                      <TableRow key={recipe.id} className="border-neutral-200 dark:border-neutral-800">
+                      <TableRow key={recipe.id} className={`border-neutral-200 dark:border-neutral-800 ${recipe.is_archived ? 'bg-neutral-100/50 dark:bg-neutral-800/30' : ''}`}>
                         <TableCell className="text-neutral-600 dark:text-neutral-400">{recipe.id}</TableCell>
                         <TableCell className="text-neutral-900 dark:text-white font-medium">{recipe.title}</TableCell>
                         <TableCell>
@@ -315,23 +477,131 @@ export default function AdminDashboard() {
                         <TableCell className="text-neutral-600 dark:text-neutral-400">
                           {recipe.view_count || 0}
                         </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="secondary" 
+                            className={`${recipe.is_archived ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'} px-3 py-1.5 rounded-full`}
+                          >
+                            {recipe.is_archived ? 'Archived' : 'Active'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-neutral-600 dark:text-neutral-400">
                           {new Date(recipe.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteRecipe(recipe.id)}
-                            className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg p-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleArchive(recipe.id, recipe.is_archived === 1)}
+                              className={`border-2 rounded-lg p-2 ${
+                                recipe.is_archived 
+                                  ? 'border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-900/20' 
+                                  : 'border-orange-600 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-900/20'
+                              }`}
+                              title={recipe.is_archived ? 'Unarchive recipe' : 'Archive recipe'}
+                            >
+                              {recipe.is_archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteRecipe(recipe.id)}
+                              className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg p-2"
+                              title="Delete recipe permanently"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            </TabsContent>
+
+            {/* Recipe Verification Tab */}
+            <TabsContent value="verification" className="p-8">
+              <RecipeVerification onRefresh={fetchData} />
+            </TabsContent>
+
+            {/* Reports Tab */}
+            <TabsContent value="reports" className="p-8">
+              <ReportManagement onRefresh={fetchData} />
+            </TabsContent>
+
+            {/* Restricted Ingredients Tab */}
+            <TabsContent value="ingredients" className="p-8">
+              <div className="space-y-8">
+                {/* Add New Ingredient Form */}
+                <div className="bg-white/50 dark:bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-neutral-200/50 dark:border-neutral-800/50">
+                  <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4">Add Restricted Ingredient</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="ingredient-name" className="text-base">Ingredient Name *</Label>
+                      <Input
+                        id="ingredient-name"
+                        placeholder="e.g., pork, alcohol, shellfish"
+                        value={newIngredient}
+                        onChange={(e) => setNewIngredient(e.target.value)}
+                        className="mt-2 bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-xl"
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddHaramIngredient()}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ingredient-reason" className="text-base">Reason (Optional)</Label>
+                      <Textarea
+                        id="ingredient-reason"
+                        placeholder="Why is this ingredient restricted? e.g., Forbidden in Islamic dietary law"
+                        value={newReason}
+                        onChange={(e) => setNewReason(e.target.value)}
+                        className="mt-2 bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-xl resize-none h-20"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleAddHaramIngredient}
+                      disabled={addingIngredient || !newIngredient.trim()}
+                      className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-2xl py-5 px-6"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      {addingIngredient ? 'Adding...' : 'Add Ingredient'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Ingredients List */}
+                <div className="bg-white/50 dark:bg-neutral-900/50 backdrop-blur-xl rounded-2xl p-6 border border-neutral-200/50 dark:border-neutral-800/50">
+                  <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-4">Restricted Ingredients ({haramIngredients.length})</h3>
+                  
+                  {haramIngredients.length === 0 ? (
+                    <p className="text-neutral-600 dark:text-neutral-400">No restricted ingredients configured yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {haramIngredients.map((ingredient) => (
+                        <div 
+                          key={ingredient.id} 
+                          className="flex items-start justify-between p-4 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-neutral-900 dark:text-white capitalize">{ingredient.ingredient_name}</p>
+                            {ingredient.reason && (
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{ingredient.reason}</p>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteHaramIngredient(ingredient.id)}
+                            className="border-2 border-red-600 text-red-600 hover:bg-red-50 dark:border-red-500 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg ml-4"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </TabsContent>
           </Tabs>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowUp, User, Calendar, Clock, MessageCircle, Send, Bookmark, Loader, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowUp, User, Calendar, Clock, MessageCircle, Send, Bookmark, Loader, Trash2, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ImageWithFallback } from '@/components/utilities/ImageWithFallback';
 import { recipeService, upvotesService, commentService, favoriteService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import ReportModal from '@/components/ReportModal';
 
 interface Recipe {
   id: number;
@@ -39,6 +40,7 @@ export default function RecipeDetail() {
   const [isVisible, setIsVisible] = useState(false);
   const [isOwnRecipe, setIsOwnRecipe] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
@@ -269,6 +271,17 @@ export default function RecipeDetail() {
                 <span className="text-xl">{upvoteCount}</span>
               </Button>
 
+              {!isOwnRecipe && (
+                <Button
+                  onClick={() => setIsReportModalOpen(true)}
+                  variant="outline"
+                  size="lg"
+                  className="rounded-2xl transition-all duration-200 border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-500 hover:scale-105"
+                >
+                  <AlertCircle className="w-6 h-6" />
+                </Button>
+              )}
+
               {isOwnRecipe && (
                 <Button
                   onClick={handleDeleteRecipe}
@@ -380,15 +393,37 @@ export default function RecipeDetail() {
                       key={comment.id}
                       className="p-6 bg-stone-50 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 hover:shadow-lg transition-all"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg text-neutral-900 dark:text-white">
-                          {comment.user}
-                        </span>
-                        <span className="text-neutral-500 dark:text-neutral-400">
+                      <div className="flex items-start justify-between mb-3 gap-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {/* Profile Image */}
+                          {comment.profile_image ? (
+                            <img
+                              src={comment.profile_image}
+                              alt={comment.user}
+                              onClick={() => comment.user_id && navigate(`/profile/${comment.user_id}`)}
+                              className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity shadow-md"
+                              title={`View ${comment.user}'s profile`}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center shrink-0 shadow-md">
+                              <User className="w-5 h-5 text-white" />
+                            </div>
+                          )}
+                          
+                          {/* Username - Clickable */}
+                          <button
+                            onClick={() => comment.user_id && navigate(`/profile/${comment.user_id}`)}
+                            className="text-lg text-neutral-900 dark:text-white hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer font-semibold truncate"
+                            title={`View ${comment.user}'s profile`}
+                          >
+                            {comment.user}
+                          </button>
+                        </div>
+                        <span className="text-neutral-500 dark:text-neutral-400 shrink-0 text-sm">
                           {new Date(comment.date).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-lg text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                      <p className="text-lg text-neutral-700 dark:text-neutral-300 leading-relaxed ml-13">
                         {comment.text}
                       </p>
                     </div>
@@ -434,6 +469,20 @@ export default function RecipeDetail() {
         </div>
       </div>
       </div>
+
+      {/* Report Modal */}
+      {recipe && (
+        <ReportModal
+          isOpen={isReportModalOpen}
+          recipeId={recipe.id}
+          recipeName={recipe.title}
+          onClose={() => setIsReportModalOpen(false)}
+          onSuccess={() => {
+            // Show success toast or notification here
+            setIsReportModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

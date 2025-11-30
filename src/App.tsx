@@ -1,6 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Pages
@@ -40,30 +38,12 @@ function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
 }
 
 function AppContent() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const { isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-neutral-900 transition-colors">
+    <div className="min-h-screen bg-stone-50 transition-colors">
       {/* Navigation - Show when authenticated */}
       {isAuthenticated && <Navigation />}
-
-      {/* Dark Mode Toggle */}
-      <button
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        className="fixed bottom-6 right-6 z-50 p-4 rounded-full bg-gradient-to-br from-green-600 to-green-700 text-white shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
-        aria-label="Toggle dark mode"
-      >
-        {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
 
       {/* Routes */}
       <Routes>

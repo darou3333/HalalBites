@@ -60,10 +60,7 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      // Use authService to register
-      await authService.register(email, username, password);
-      
-      // Use AuthContext to register
+      // Use AuthContext to register (this handles the API call internally)
       await register(email, username, password);
       
       setSuccess('Account created successfully! Redirecting...');

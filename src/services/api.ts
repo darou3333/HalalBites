@@ -3,7 +3,7 @@
  * Centralized API calls with error handling
  */
 
-import { ApiError, AuthResponse, Recipe, Comment, User } from '../types';
+import { ApiError, AuthResponse, Recipe, Comment, User, Report, CreateReportInput, RecipeVerification } from '../types';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -95,6 +95,10 @@ export const recipeService = {
     return apiCall('/recipes');
   },
 
+  async getAllForAdmin(): Promise<Recipe[]> {
+    return apiCall('/recipes/admin/all');
+  },
+
   async getTrending(limit = 10): Promise<Recipe[]> {
     return apiCall(`/recipes/trending?limit=${limit}`);
   },
@@ -105,6 +109,10 @@ export const recipeService = {
 
   async getByUserId(userId: number): Promise<Recipe[]> {
     return apiCall(`/recipes/user/${userId}`);
+  },
+
+  async getOwnRecipes(): Promise<Recipe[]> {
+    return apiCall('/recipes/own');
   },
 
   async create(recipe: any): Promise<Recipe> {
@@ -124,6 +132,13 @@ export const recipeService = {
   async delete(id: number): Promise<{ message: string }> {
     return apiCall(`/recipes/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  async toggleArchive(id: number, isArchive: boolean): Promise<Recipe> {
+    return apiCall(`/recipes/${id}/archive`, {
+      method: 'PUT',
+      body: JSON.stringify({ isArchive }),
     });
   },
 };
@@ -211,8 +226,14 @@ export const userService = {
     });
   },
 
-  async deactivate(id: number): Promise<{ message: string }> {
+  async deactivate(id: number): Promise<{ message: string; data?: any }> {
     return apiCall(`/users/${id}/deactivate`, {
+      method: 'PUT',
+    });
+  },
+
+  async reactivate(id: number): Promise<{ message: string; data?: any }> {
+    return apiCall(`/users/${id}/reactivate`, {
       method: 'PUT',
     });
   },
@@ -221,5 +242,89 @@ export const userService = {
     return apiCall(`/users/${id}`, {
       method: 'DELETE',
     });
+  },
+};
+
+// ============ Reports Service ============
+
+export const reportService = {
+  async create(recipeId: number, data: CreateReportInput): Promise<Report> {
+    return apiCall(`/reports/${recipeId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getAll(status?: string, recipeId?: number): Promise<Report[]> {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (recipeId) params.append('recipeId', recipeId.toString());
+    return apiCall(`/reports?${params.toString()}`);
+  },
+
+  async getByRecipeId(recipeId: number): Promise<Report[]> {
+    return apiCall(`/reports/recipe/${recipeId}`);
+  },
+
+  async updateStatus(reportId: number, status: string, adminNotes?: string): Promise<Report> {
+    return apiCall(`/reports/${reportId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, adminNotes }),
+    });
+  },
+
+  async delete(reportId: number): Promise<{ message: string }> {
+    return apiCall(`/reports/${reportId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============ Haram Ingredients Service ============
+
+export const haramIngredientsService = {
+  async getAll(): Promise<{ id: number; ingredient_name: string; reason?: string }[]> {
+    return apiCall('/haram-ingredients');
+  },
+
+  async add(ingredient_name: string, reason?: string): Promise<{ id: number; ingredient_name: string; reason?: string }> {
+    return apiCall('/haram-ingredients', {
+      method: 'POST',
+      body: JSON.stringify({ ingredient_name, reason }),
+    });
+  },
+
+  async delete(id: number): Promise<{ message: string }> {
+    return apiCall(`/haram-ingredients/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============ Recipe Verification Service ============
+
+export const recipeVerificationService = {
+  async getPending(): Promise<Recipe[]> {
+    return apiCall('/recipes/admin/pending');
+  },
+
+  async verify(recipeId: number, action: 'approve' | 'reject', reason?: string): Promise<Recipe> {
+    return apiCall(`/recipes/${recipeId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, reason }),
+    });
+  },
+};
+
+// ============ Stats Service ============
+
+export const statsService = {
+  async getStats(): Promise<{
+    totalRecipes: number;
+    totalCategories: number;
+    communityRecipes: number;
+    activeUsers: number;
+  }> {
+    return apiCall('/stats');
   },
 };

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Loader } from 'lucide-react';
+import { Search, Filter, Loader, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import RecipeCard from '@/components/RecipeCard';
 import { recipeService, favoriteService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,24 +17,42 @@ export default function UserDashboard() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isVisible, setIsVisible] = useState(false);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     setIsVisible(true);
+    // CRITICAL: Clear old favorites FIRST before loading new user's favorites
+    setFavoriteIds(new Set());
+    
     fetchRecipes();
     if (user?.id) {
       fetchFavorites();
+      fetchUserRecipes();
     }
   }, [user?.id]);
 
   const fetchFavorites = async () => {
     try {
       const favorites = await favoriteService.getAll();
-      setFavoriteIds(new Set(favorites.map((f: any) => f.id)));
+      // Clear old favorites and set new ones
+      const newFavoriteIds = new Set(favorites.map((f: any) => f.id));
+      setFavoriteIds(newFavoriteIds);
     } catch (err) {
       console.error('Failed to fetch favorites:', err);
+      // Clear favorites on error
+      setFavoriteIds(new Set());
+    }
+  };
+
+  const fetchUserRecipes = async () => {
+    try {
+      const data = await recipeService.getOwnRecipes();
+      setUserRecipes(data || []);
+    } catch (err) {
+      console.error('Failed to fetch user recipes:', err);
     }
   };
 
@@ -162,6 +181,58 @@ export default function UserDashboard() {
           </div>
         )}
 
+        {/* My Recipes Section (if user is logged in) */}
+        {user && userRecipes.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-6">
+              <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-neutral-900 dark:text-white tracking-tight mb-2">
+                My Recipes
+              </h2>
+              <p className="text-neutral-600 dark:text-neutral-400">Recipes you've uploaded</p>
+            </div>
+
+            <div className="space-y-4">
+              {userRecipes.map((recipe) => {
+                const isVerified = recipe.is_verified === 1;
+                return (
+                  <div 
+                    key={recipe.id} 
+                    className="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-4 border border-neutral-200/50 dark:border-neutral-800/50 hover:shadow-lg transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-neutral-900 dark:text-white">{recipe.title}</h3>
+                          {!isVerified && (
+                            <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-2 py-1 rounded-full font-medium">
+                              Pending Verification
+                            </span>
+                          )}
+                          {isVerified && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-2 py-1 rounded-full font-medium">
+                              Verified
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">{recipe.category}</p>
+                      </div>
+                      <Button 
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/recipe/${recipe.id}`)}
+                        disabled={!isVerified}
+                        className="h-8 px-3 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all duration-700 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        View Recipe →
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Recipe Grid */}
         <div className="mb-6">
           {error && (
@@ -195,7 +266,7 @@ export default function UserDashboard() {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                 {filteredRecipes.map((recipe, index) => (
                   <div 
-                    key={recipe.id}
+                    key={`${user?.id}-${recipe.id}`}
                     className={`transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                     style={{ transitionDelay: `${400 + index * 100}ms` }}
                   >

@@ -69,20 +69,11 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-4">
             <button
               onClick={() => navigate(`/profile/${user?.id}`)}
-              className="flex items-center gap-2.5 px-5 py-3 bg-stone-100 dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-all duration-500 ease-out"
-              title="View your profile"
-            >
-              <User className="w-5 h-5 text-neutral-600 dark:text-neutral-300" />
-              <span>Profile</span>
-            </button>
-            <button
-              onClick={() => navigate('/profile')}
               className="flex items-center gap-2.5 px-5 py-3 bg-green-600 hover:bg-green-700 rounded-2xl text-white transition-all duration-500 ease-out"
-              title="Edit your profile settings"
+              title="View and edit your profile"
             >
-              <span>
-                {user?.role === 'admin' ? 'Admin Panel' : 'Profile Settings'}
-              </span>
+              <User className="w-5 h-5" />
+              <span>Profile</span>
             </button>
             <Button 
               variant="outline" 
@@ -135,10 +126,10 @@ export default function Navigation() {
                   navigate(`/profile/${user?.id}`);
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
+                className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white transition-all"
               >
                 <User className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                <span className="text-sm sm:text-base">View Your Profile</span>
+                <span className="text-sm sm:text-base">Profile</span>
               </button>
               
               <Button 

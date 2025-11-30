@@ -15,8 +15,15 @@ router.get('/', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    // Add active column if it doesn't exist
+    try {
+      await db.run('ALTER TABLE users ADD COLUMN active BOOLEAN DEFAULT 1');
+    } catch (e) {
+      // Column might already exist
+    }
+
     const users = await db.all(
-      'SELECT id, email, username, role, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, email, username, role, active, created_at FROM users ORDER BY created_at DESC'
     );
     
     res.json(users);
@@ -117,6 +124,32 @@ router.put('/:id/deactivate', verifyToken, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to deactivate user' });
+  }
+});
+
+// Reactivate user (admin only)
+router.put('/:id/reactivate', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getDb();
+
+    // Check if user is admin
+    const admin = await db.get('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Reactivate user
+    const result = await db.run('UPDATE users SET active = 1 WHERE id = ?', [id]);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User reactivated' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to reactivate user' });
   }
 });
 
