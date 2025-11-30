@@ -18,6 +18,49 @@ interface Ingredient {
 
 const quantityUnits = ['kg', 'g', 'ml', 'l', 'cup', 'tbsp', 'tsp', 'packs', 'pieces', 'bunch', 'cloves', 'pinch', 'oz'];
 
+// Common fractions for quick selection
+const commonFractions = [
+  { label: '1/8', value: 0.125 },
+  { label: '1/4', value: 0.25 },
+  { label: '1/3', value: 0.333 },
+  { label: '1/2', value: 0.5 },
+  { label: '2/3', value: 0.667 },
+  { label: '3/4', value: 0.75 },
+  { label: '1 1/8', value: 1.125 },
+  { label: '1 1/4', value: 1.25 },
+  { label: '1 1/3', value: 1.333 },
+  { label: '1 1/2', value: 1.5 },
+  { label: '1 2/3', value: 1.667 },
+  { label: '1 3/4', value: 1.75 },
+  { label: '2 1/2', value: 2.5 },
+];
+
+// Convert fraction string to decimal
+const parseFraction = (input: string): number | null => {
+  const trimmed = input.trim();
+  
+  // Check if it's already a decimal number
+  const decimal = parseFloat(trimmed);
+  if (!isNaN(decimal)) {
+    return decimal;
+  }
+  
+  // Try to parse as fraction (e.g., "1/2", "3/4", "1 1/2")
+  const fractionRegex = /^(\d+)?\s*(\d+)\/(\d+)$/;
+  const match = trimmed.match(fractionRegex);
+  
+  if (match) {
+    const whole = match[1] ? parseInt(match[1]) : 0;
+    const numerator = parseInt(match[2]);
+    const denominator = parseInt(match[3]);
+    
+    if (denominator === 0) return null;
+    return whole + numerator / denominator;
+  }
+  
+  return null;
+};
+
 export default function UploadRecipe() {
   const navigate = useNavigate();
   useAuth(); // Ensure user is authenticated
@@ -156,11 +199,15 @@ export default function UploadRecipe() {
     try {
       const ingredientsArray = ingredients
         .filter(ing => ing.name.trim())
-        .map(ing => ({
-          name: ing.name.trim(),
-          quantity: ing.quantity?.trim() || '',
-          unit: ing.unit || 'kg'
-        }));
+        .map(ing => {
+          // Parse quantity (support both fractions and decimals)
+          const parsedQuantity = parseFraction(ing.quantity || '0');
+          return {
+            name: ing.name.trim(),
+            quantity: parsedQuantity !== null ? parsedQuantity.toString() : (ing.quantity?.trim() || ''),
+            unit: ing.unit || 'kg'
+          };
+        });
 
       await recipeService.create({
         title: dishName,
@@ -361,16 +408,28 @@ export default function UploadRecipe() {
                       required
                     />
                   </div>
-                  <div className="w-24 sm:w-28">
+                  <div className="w-32 sm:w-36 relative group">
                     <Input
                       value={ingredient.quantity}
                       onChange={(e) => updateIngredient(index, 'quantity', e.target.value)}
-                      placeholder="Qty"
+                      placeholder="e.g., 1/2 or 0.5"
                       className="bg-stone-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 rounded-xl sm:rounded-2xl h-10 sm:h-12 md:h-14 text-sm sm:text-base md:text-lg"
-                      type="number"
-                      min="0"
-                      step="0.1"
+                      title="Enter quantity (e.g., 1/2, 0.5, 1 1/3)"
                     />
+                    {/* Fraction suggestion dropdown - visible on focus/hover */}
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg shadow-lg z-50 hidden group-hover:block max-h-56 overflow-y-auto">
+                      <div className="p-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300 sticky top-0 bg-stone-50 dark:bg-neutral-800">Common Fractions</div>
+                      {commonFractions.map((frac) => (
+                        <button
+                          key={frac.label}
+                          type="button"
+                          onClick={() => updateIngredient(index, 'quantity', frac.label)}
+                          className="w-full text-left px-3 py-2 hover:bg-green-100 dark:hover:bg-green-900/30 text-sm text-neutral-700 dark:text-neutral-200 transition"
+                        >
+                          {frac.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="w-28 sm:w-32">
                     <Select value={ingredient.unit} onValueChange={(value) => updateIngredient(index, 'unit', value)}>
