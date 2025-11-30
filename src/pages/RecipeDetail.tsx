@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowUp, User, Calendar, Clock, MessageCircle, Send, Bookmark, Loader, Trash2, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, User, Calendar, Clock, MessageCircle, Send, Bookmark, Loader, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ImageWithFallback } from '@/components/utilities/ImageWithFallback';
@@ -34,7 +34,7 @@ export default function RecipeDetail() {
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(0);
   const [newComment, setNewComment] = useState('');
-  const [comments, setComments] = useState<Array<{ id: number; user: string; text: string; date: string }>>([]);
+  const [comments, setComments] = useState<Array<{ id: number; user: string; text: string; date: string; user_id?: number; profile_image?: string }>>([]);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isVisible, setIsVisible] = useState(false);

@@ -49,6 +49,7 @@ export interface Recipe {
   user_id: number;
   username: string;
   is_verified: number;
+  is_archived?: number;
   created_at: string;
   view_count: number;
 }
